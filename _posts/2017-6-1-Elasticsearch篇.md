@@ -8,7 +8,6 @@ header-img: img/2017-06-01-elasticsearch.png
 catalog: true
 tags:
     - ELKstack
-    - 日记
     - 日志分析
 ---
 
@@ -28,6 +27,7 @@ tags:
 [root@node4 ~]# ntpdate  0.centos.pool.ntp.org
 ```
 # 2.主机实验用途说明
+
 - node1和node2为elasticsearch集群(不部署Logstash) 
 - node3收集对象,Nginx、java、tcp、syslog等日志 
 - node4将logstash日志写入Redis,减少程序对elasticsearch依赖性，同时实现程序解耦以及架构扩展。 
@@ -64,6 +64,7 @@ enabled=1
 elasticsearch-2.4.5-1.noarch
 ```
 ## 5.配置elasticsearch并启动
+
 ```
 [root@node1 ~]# mkdir -p /data/es-data
 [root@node1 ~]# chown -R elasticsearch.elasticsearch /data/es-data
@@ -76,12 +77,12 @@ bootstrap.memory_lock: true
 network.host: 192.168.123.111
 http.port: 9200
 discovery.zen.ping.unicast.hosts: ["node1", "node2"]  #要是用集群需要有这一项
-
 [root@node1 ~]# systemctl  start elasticsearch.service
 [root@node1 ~]# ss -tnl|grep -E "9200|9300"
 LISTEN     0      50      ::ffff:192.168.123.111:9200                    :::*                  
 LISTEN     0      50      ::ffff:192.168.123.111:9300                    :::*     
 ```
+
 ```
 [root@node2 ~]# mkdir -p /data/es-data
 [root@node2 ~]# chown -R elasticsearch.elasticsearch /data/es-data
