@@ -1,0 +1,427 @@
+**摘要**：上篇我们使用2个节点node1（192.168.123.111）和node2（192.168.123.112）已经部署好一个es集群。本篇，我们在node3（192.168.123.113）部署logstash来实现日志收集。
+# 1.提供jdk环境
+```
+[root@node3 ~]# yum install  java
+[root@node3 ~]# java -version
+openjdk version "1.8.0_102"
+OpenJDK Runtime Environment (build 1.8.0_102-b14)
+OpenJDK 64-Bit Server VM (build 25.102-b14, mixed mode)
+```
+# 2.导入GPG KEY，并配置Logstash的yum仓库
+```
+[root@node3 ~]# rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+
+[root@node3 ~]# vim /etc/yum.repos.d/logstash.repo
+[logstash-2.3]
+name=Logstash repository for 2.3.x packages
+baseurl=https://packages.elastic.co/logstash/2.3/centos
+gpgcheck=1
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+```
+# 3.安装logstash
+```
+[root@node3 ~]# yum install -y logstash
+[root@node3 ~]# rpm -q logstash
+logstash-2.3.4-1.noarch
+```
+# 4.启动logstash服务
+```
+[root@node3 ~]# echo "export PATH=/opt/logstash/bin/:$PATH" > /etc/profile.d/logstash.sh[root@node3 ~]# . /etc/profile.d/logstash.sh
+
+```
+# 5.配置logstash
+logstash实现input和output主要依赖于logstash的许多插件
+## 5.1.Input插件
+### 1.从标准输入输出到标准输出
+```
+## 在命令行测试
+[root@node3 ~]# /opt/logstash/bin/logstash -e 'input { stdin{} } output { stdout{} }'
+Settings: Default pipeline workers: 1
+Pipeline main started
+hello  # 输入
+2017-05-01T04:36:05.809Z node3 hello  #输出
+
+## 第二种，经过处理后输出
+[root@node3 ~]# /opt/logstash/bin/logstash -e 'input { stdin{} } output { stdout{ codec=>"rubydebug"} }'
+Settings: Default pipeline workers: 1
+Pipeline main started
+hello  #输入
+{
+       "message" => "hello",
+      "@version" => "1",
+    "@timestamp" => "2017-05-01T04:37:46.764Z",
+          "host" => "node3"
+}
+
+## 以demo方式测试
+
+[root@node3 conf.d]# vim  /etc/logstash/conf.d/stdin-out.conf
+
+input {
+        stdin {}
+}
+
+output {
+        stdout {
+                codec   => rubydebug
+        }
+}
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/stdin-out.conf -t
+Configuration OK
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/stdin-out.conf 
+Settings: Default pipeline workers: 1
+Pipeline main started
+hello
+{
+       "message" => "hello",
+      "@version" => "1",
+    "@timestamp" => "2017-05-01T04:57:44.522Z",
+          "host" => "node3"
+}
+```
+### 2.file插件
+从文件中读取数据输出到标准输出。从指定的文件中读取数据流
+```
+[root@node3 ~]# vim /etc/logstash/conf.d/from_file.conf
+
+input {
+        file {
+                path => ["/var/log/messages"]
+                type => "system"
+                start_position => "beginning"
+        }
+}
+
+output {
+        stdout {
+                codec => "rubydebug"
+        }
+
+}
+
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/from_file.conf -t
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/from_file.conf 
+{
+       "message" => "May  1 10:21:19 localhost chronyd[813]: Source 61.216.153.106 offline",
+      "@version" => "1",
+    "@timestamp" => "2017-05-01T05:03:33.984Z",
+          "path" => "/var/log/messages",
+          "host" => "node3",
+          "type" => "system"
+}
+```
+### 3.udp插件
+通过udp协议从网络连接来读取Message，其必备参数为port，用于指明自己舰艇的端口，host则指明自己监听的地址。
+示例：在node4上(192.168.123.114)安装collected(心梗监控程序)，并配置collectd能通过自己的network插件向外部发送数据，这样我们就能通过udp插件来接收数据了。
+```
+#安装collectd程序，并配置其通过自身的network插件向外发送数据
+[root@node4 ~]# yum install -y collectd
+[root@node4 ~]# vim /etc/collectd.conf 
+Hostname    "node4"
+LoadPlugin network
+<Plugin network>
+        <Server "192.168.123.113" "25826">  #此为logstash地址和配置文件中指定的端口
+        </Server>
+</Plugin>
+[root@node4 ~]# systemctl  start collectd.service 
+[root@node4 ~]# systemctl  status collectd.service 
+
+# 在logstash端编写配置文件
+[root@node3 ~]# vim /etc/logstash/conf.d/udp.conf
+input {
+        udp {
+                port    => 25826
+                codec   => collectd {}
+                type    => "collectd"
+        }
+}
+
+output {
+        stdout {
+                codec   => "rubydebug"
+        }
+}
+
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/udp.conf -t
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/udp.conf 
+{
+               "host" => "node4",
+         "@timestamp" => "2017-05-01T05:52:03.101Z",
+             "plugin" => "cpu",
+      "collectd_type" => "cpu",
+      "type_instance" => "system",
+    "plugin_instance" => "0",
+              "value" => 5674,
+           "@version" => "1",
+               "type" => "collectd"
+}
+```
+
+## 5.2.filter插件
+用于在将event通过output发出之前对其实现某些处理功能。
+- 模式定义位置 `/opt/logstash/vendor/bundle/jruby/1.9/gems/logstash-patterns-core-2.0.5/patterns/grok-patterns`
+### 1.grok插件
+用于分析并结构化文本数据；目前 是logstash中将非结构化日志数据转化为结构化的可查询数据的不二之选
+#### 5.2.1.模式匹配演示
+```
+[root@node3 ~]# cat /etc/logstash/conf.d/grok.conf
+input {
+    stdin {}
+}
+
+filter {
+    grok {
+	match => { "message" => "%{IP:clientip} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}" }
+    }
+}
+
+output {
+    stdout {
+	codec 	=> rubydebug
+    }
+}
+
+
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/grok.conf 
+Settings: Default pipeline workers: 1
+Pipeline main started
+1.1.1.1 GET /index.html 30 0.23  #输入
+{
+       "message" => "1.1.1.1 GET /index.html 30 0.23",
+      "@version" => "1",
+    "@timestamp" => "2017-05-01T06:15:39.443Z",
+          "host" => "node3",
+      "clientip" => "1.1.1.1",
+        "method" => "GET",
+       "request" => "/index.html",
+         "bytes" => "30",
+      "duration" => "0.23"
+}
+```
+#### 5.2.2.过滤apache日志
+```
+[root@node3 ~]# vim /etc/logstash/conf.d/grok_apache.conf
+
+input {
+    file {
+        path    => ["/var/log/httpd/access_log"]
+        type    => "apachelog"
+        start_position => "beginning"
+    }
+}
+
+filter {
+    grok {
+        match => { "message" => "%{COMBINEDAPACHELOG}" }
+    }
+}
+
+output {
+    stdout {
+        codec   => rubydebug
+    }
+}
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/grok_apache.conf 
+Settings: Default pipeline workers: 1
+Pipeline main started
+
+{
+        "message" => "192.168.123.141 - - [01/May/2017:14:22:07 +0800] \"GET /favicon.ico HTTP/1.1\" 404 209 \"http://192.168.123.113/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36\"",
+       "@version" => "1",
+     "@timestamp" => "2017-05-01T06:22:41.496Z",
+           "path" => "/var/log/httpd/access_log",
+           "host" => "node3",
+           "type" => "apachelog",
+       "clientip" => "192.168.123.141",
+          "ident" => "-",
+           "auth" => "-",
+      "timestamp" => "01/May/2017:14:22:07 +0800",
+           "verb" => "GET",
+        "request" => "/favicon.ico",
+    "httpversion" => "1.1",
+       "response" => "404",
+          "bytes" => "209",
+       "referrer" => "\"http://192.168.123.113/\"",
+          "agent" => "\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36\""
+}
+
+```
+#### 5.2.3.过滤nginx日志
+```
+# 在logstash自己的模式定义文件中加入以下行，要与patter匹配nginx日志
+[root@node3 ~]# vim /opt/logstash/vendor/bundle/jruby/1.9/gems/logstash-patterns-core-2.0.5/patterns/grok-patterns
+
+NGUSERNAME [a-zA-Z\.\@\-\+_%]+
+NGUSER %{NGUSERNAME}
+NGINXACCESS %{IPORHOST:clientip} - %{NOTSPACE:remote_user} \[%{HTTPDATE:timestamp}\] \"(?:%{WORD:verb} %{NOTSPACE:request}(?: HTTP/%{NUMBER:httpversion})?|%{DATA:rawrequest})\" %{NUMBER:response} (?:%{NUMBER:bytes}|-) %{QS:referrer} %{QS:agent} %{NOTSPACE:http_x_forwarded_for}
+
+# 编写文件用来实现nginx过滤
+[root@node3 ~]# vim /etc/logstash/conf.d/grok_nginx.conf
+input {
+    file {
+		path 	=> ["/var/log/nginx/access.log"]
+		type	=> "nginxlog"
+		start_position => "beginning"
+    }
+}
+filter {
+    grok {
+		match => { "message" => "%{NGINXACCESS}" }
+    }
+}
+output {
+    stdout {
+		codec	=> rubydebug
+    }
+}
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/grok_nginx.conf 
+{
+       "message" => "192.168.123.141 - - [01/May/2017:14:28:30 +0800] \"GET /poweredby.png HTTP/1.1\" 200 2811 \"http://192.168.123.113/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36\" \"-\"",
+      "@version" => "1",
+    "@timestamp" => "2017-05-01T06:30:51.576Z",
+          "path" => "/var/log/nginx/access.log",
+          "host" => "node3",
+          "type" => "nginxlog",
+          "tags" => [
+        [0] "_grokparsefailure"
+    ]
+}
+
+```
+#### 5.2.3.过滤tomct日志
+```
+
+```
+## 6.Output插件
+### 6.1.redis插件
+####  6.1.1.redis插件做logstash的输出插件
+安装redis，并配置其能监听在外部的地址 ，示例：演示redis做输入插件。也就是说logstash收集到的nginx信息输出给redis
+```
+[root@node3 ~]# vim /etc/logstash/conf.d/redis_output.conf
+input {
+    file {
+		path 	=> ["/var/log/nginx/access.log"]
+		type	=> "nginxlog"
+		start_position => "beginning"
+    }
+}
+
+filter {
+    grok {
+		match => { "message" => "%{NGINXACCESS}" }
+    }
+}
+output {
+    redis {
+	port	=> "6379"	
+	host	=> ["127.0.0.1"]
+	data_type	=> "list"
+	key	=> "logstash-%{type}"
+    }
+}
+
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/redis_output.conf -t
+[root@node3 ~]# logstash -f /etc/logstash/conf.d/redis_output.conf 
+# 进入reids查看，可以发现数据已经存储在nginx中了
+[root@node3 ~]# redis-cli 
+127.0.0.1:6379> keys *
+1) "logstash-nginxlog"
+127.0.0.1:6379> lindex logstash-nginxlog 1
+"{\"message\":\"192.168.123.141 - - [01/May/2017:15:19:20 +0800] \\\"GET / HTTP/1.1\\\" 304 0 \\\"-\\\" \\\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36\\\" \\\"-\\\"\",\"@version\":\"1\",\"@timestamp\":\"2017-05-01T07:19:21.100Z\",\"path\":\"/var/log/nginx/access.log\",\"host\":\"node3\",\"type\":\"nginxlog\",\"tags\":[\"_grokparsefailure\"]}"
+```
+#### 6.1.2.将redis作为logstash的输入插件。
+例：演示redis做输入插件。也就是说logstash收集到的nginx信息输出给redis，logstash再从redis中读取数据。我们在准备一台logstash服务器，用来接收redis中输出的数据。这里我们以node1(192.168.123.111)安装logstash
+```
+[root@node1 ~]#  rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+[root@node1 ~]# vim /etc/yum.repos.d/logstash.repo
+
+[logstash-2.3]
+name=Logstash repository for 2.3.x packages
+baseurl=https://packages.elastic.co/logstash/2.3/centos
+gpgcheck=1
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+[root@node1 ~]# yum install -y logstash
+
+[root@node1 ~]# vim /etc/logstash/conf.d/redis_input.conf
+input {
+        redis {
+                port    => "6379"
+                host    => "192.168.123.113"
+                data_type       => "list"
+                type    => "nginxlog"
+                key     => "logstash-nginxlog"
+        }
+}
+
+output {
+        stdout {
+                codec   => "rubydebug"
+        }
+}
+
+[root@node1 ~]# /opt/logstash/bin/logstash -f /etc/logstash/conf.d/red_input.conf  -t
+[root@node1 ~]# /opt/logstash/bin/logstash -f /etc/logstash/conf.d/red_input.conf
+ "message" => "192.168.123.141 - - [01/May/2017:15:19:20 +0800] \"GET / HTTP/1.1\" 304 0 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36\" \"-\"",
+      "@version" => "1",
+    "@timestamp" => "2017-05-01T07:19:21.103Z",
+          "path" => "/var/log/nginx/access.log",
+          "host" => "node3",
+          "type" => "nginxlog",
+          "tags" => [
+        [0] "_grokparsefailure"
+    ]
+}
+```
+### 6.2.elasticsearch插件
+将logstash收集到的数据发送给es集群
+```
+[root@node3 ~]# logstash -f  /etc/logstash/conf.d/redis_output.conf  # 用来将nginx访问日志输出到redis中
+
+[root@node1 ~]# vim /etc/logstash/conf.d/red_input_elasticsearch.conf # 用于将redis中数据输出个ES集群
+
+input {
+        redis {
+                port    => "6379"
+                host    => "192.168.123.113"
+                data_type       => "list"
+                type    => "nginxlog"
+                key     => "logstash-nginxlog"
+        }
+}
+
+output {
+        elasticsearch {
+               hosts => ["192.168.123.111:9200","192.168.123.112:9200"]
+                index   => "logstash-%{+YYYY.MM.dd}"
+        }
+}
+
+[root@node1 ~]# /opt/logstash/bin/logstash -f /etc/logstash/conf.d/red_input_elasticsearch.conf  -t
+[root@node1 ~]# /opt/logstash/bin/logstash -f /etc/logstash/conf.d/red_input_elasticsearch.conf
+
+#验证在集群中的任意一个节点确认是否保存
+[root@node2 ~]# curl -XGET '192.168.123.112:9200/_cat/indices' 
+green open .kibana             1 1  1 0   6.3kb   3.1kb  
+green open logstash-2017.05.01 5 1 35 0 200.1kb 103.1kb  # redis中的数据
+```
+
+##  7.让logstash运行在后台
+```
+[root@node1 ~]# /etc/init.d/logstash start
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
