@@ -122,6 +122,8 @@ ARRAY_NAME=([index_name1]="value1"  [index_name2]="value2" ...)
 ## 字符串切片
 语法格式：`${var:offset:number}`
 - 取字符串子串（负索引技术法）
+
+
 ```
 [root@rex ~]# name=jerry
 [root@rex ~]# echo ${name: -4} // -4前有一个空格

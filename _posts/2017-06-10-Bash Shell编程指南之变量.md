@@ -299,7 +299,10 @@ Restarting network (via systemctl):                        [  OK  ]
 restart
 ```
 ## 变量赋值的高级用法
-`${var:-VALUE}`：如果var变量为空，或未设置，那么返回VALUE；否则，则返回var变量的值； 
+`${var:-VALUE}`：如果var变量为空，或未设置，那么返回VALUE；否则，则返回var变量的值；
+
 `${var:=VALUE}`：如果var变量为空，或未设置，那么返回VALUE，并将VALUE赋值给var变量；否则，则返回var变量的值； 
+
 `${var:+VALUE}`：如果var变量不空，则返回VALUE；
+
 `${var:?ERROR_INFO}`：如果var变量为空，或未设置，那么返回ERROR_INFO为错误提示；否则，返回var值； 
