@@ -162,19 +162,27 @@ http
 ```
 ## 字符串的查找替换
 `${var/PATTERN/SUBSTI}`：查找var所表示的字符串中，第一次被PATTERN所匹配到的字符串，将其替换为SUBSTI所表示的字符串；
+
 `${var//PATTERN/SUBSTI}`：查找var所表示的字符串中，所有被PATTERN所匹配到的字符串，并将其全部替换为SUBSTI所表示的字符串；
+
 `${var/#PATTERN/SUBSTI}`：查找var所表示的字符串中，行首被PATTERN所匹配到的字符串，将其替换为SUBSTI所表示的字符串；如果不是行首，不予替换；
+
 `${var/%PATTERN/SUBSTI}`：查找var所表示的字符串中，行尾被PATTERN所匹配到的字符串，将其替换为SUBSTI所表示的字符串；如果不是行尾，不予替换；
+
 
 > 注意：这里的PATTERN中使用glob风格和通配符；
 
 ## 字符串的查找删除
 `${var/PATTERN}`：以PATTERN为模式查找var字符串中第一次的匹配，并删除之；
+
 `${var//PATERN}`：。。。。。。。。。。。。。。。。所有的。。。。。。。。
+
 `${var/#PATTERN}` 。。。。。。。。。。。。。。。。。行首。。。。。。。。
+
 `${var/%PATTERN}` 。。。。。。。。。。。。。。。。。行尾。。。。。。。。
 
 ## 字符串大小写转换
 `${var^^}`：把var中的所有小写字符转换为大写；
+
 `${var,,}`：把var中的所有大写字符转换为小写；
 
