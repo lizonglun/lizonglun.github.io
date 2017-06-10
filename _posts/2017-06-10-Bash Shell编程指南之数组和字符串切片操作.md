@@ -161,6 +161,7 @@ ${mypath%%/*}:  取得结果：etc
 http
 ```
 ## 字符串的查找替换
+
 `${var/PATTERN/SUBSTI}`：查找var所表示的字符串中，第一次被PATTERN所匹配到的字符串，将其替换为SUBSTI所表示的字符串；
 
 `${var//PATTERN/SUBSTI}`：查找var所表示的字符串中，所有被PATTERN所匹配到的字符串，并将其全部替换为SUBSTI所表示的字符串；
