@@ -1,6 +1,6 @@
 ---
 layout:     post
-title:      CI持续集成系列之（一）Jenkins安装
+title:      CI持续集成系列之（二）Jenkins安装
 subtitle:   在CentOS7.2上安装Jenkins
 date:       2017-06-22
 author:     DY
