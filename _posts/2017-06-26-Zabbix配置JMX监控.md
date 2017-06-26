@@ -69,7 +69,7 @@ skip_name_resve=ON
 ```
 # vim /etc/zabbix/zabbix_server.conf 
 ListenPort=10051
-SourceIP=192.168.157.128
+SourceIP=192.168.157.129
 DBHost=127.0.0.1
 DBName=zabbix
 DBUser=zbxuser
@@ -100,7 +100,7 @@ php_value date.timezone Asia/Shanghai
 # systemctl  start httpd
 ```
 5.此时我们就可以在web页面下安装了
-访问地址：http://ip/zabbix。本机为`192.168.157.128`
+访问地址：http://ip/zabbix。本机为`192.168.157.129`
 ![](http://upload-images.jianshu.io/upload_images/3149961-ece35dca519eddc7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
 ![](http://upload-images.jianshu.io/upload_images/3149961-6e95ba6997b58a81.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
@@ -130,7 +130,7 @@ php_value date.timezone Asia/Shanghai
 配置很简单，只需要指明服务端是谁就可以了
 ```
 # vim /etc/zabbix/zabbix_agentd.conf
-Server=192.168.157.128
+Server=192.168.157.129
 ```
 ```
 # systemctl   start zabbix-agent.service
@@ -148,7 +148,7 @@ LISTEN     0      128         :::10050                   :::*
 此时，虽然我们的server端和agent端都配置完成了，但是我们仍然看不到数据，这是因为我们么有在web界面上配置这台机器。接下来，我们在web界面下添加此机器，让其数据能在zabbix web页面下进行展示。
 
 点击 `Configuration` ，再点击 `Hosts` 最后点击`Create host` ,我们需要填写一下数据：
-![](http://upload-images.jianshu.io/upload_images/3149961-f2b249ee0fd771a6.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![](http://upload-images.jianshu.io/upload_images/3149961-cd83f2eb87f2d5ca.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
 此时还是没有数据，是因为我们的主机上没有item,古我们给这台机器link上模板`Template OS Linux`
 
